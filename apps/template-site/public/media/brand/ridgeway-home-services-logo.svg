@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="126" viewBox="0 0 512 126" role="img" aria-labelledby="title desc">
+  <title id="title">Ridgeway Home Services logo</title>
+  <desc id="desc">A modern roofline mark beside the Ridgeway Home Services wordmark.</desc>
+  <rect width="512" height="126" fill="none"/>
+  <g transform="translate(20 18)">
+    <path d="M47 4 88 39v47H6V39L47 4Z" fill="#F8F6EF"/>
+    <path d="M47 4 88 39" stroke="#D58A34" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 39 47 4l41 35" stroke="#254E48" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M22 85V46l25-21 25 21v39" fill="#E9F1ED"/>
+    <path d="M22 85V46l25-21 25 21v39" stroke="#254E48" stroke-width="5.5" stroke-linejoin="round"/>
+    <path d="M47 39v34M31 56h32" stroke="#D58A34" stroke-width="5.5" stroke-linecap="round"/>
+  </g>
+  <g fill="#254E48">
+    <text x="142" y="61" font-family="Inter, Arial, Helvetica, sans-serif" font-size="41" font-weight="800" letter-spacing=".2">Ridgeway</text>
+    <text x="144" y="95" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="4.4">HOME SERVICES</text>
+  </g>
+  <path d="M144 105h284" stroke="#D58A34" stroke-width="4" stroke-linecap="round"/>
+</svg>

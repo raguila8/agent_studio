@@ -1,0 +1,25 @@
+import { clsx } from 'clsx/lite'
+import type { ComponentProps } from 'react'
+
+export function ChevronDownIcon({
+  className,
+  ...props
+}: ComponentProps<'svg'>) {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox='0 0 16 16'
+      fill='currentColor'
+      role='image'
+      className={clsx('inline-block', className)}
+      {...props}
+    >
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06z'
+      />
+    </svg>
+  )
+}

@@ -1,0 +1,192 @@
+{
+  "site": {
+    "name": "Ridgeway Home Services",
+    "url": "https://example.com",
+    "description": "Sample template content for a multi-service contractor. Ridgeway Home Services is a fictional plumbing, HVAC, electrical, and roofing company serving Springfield, IL and Madison, WI homeowners with licensed technicians, upfront pricing, and emergency repairs.",
+    "logo": {
+      "src": "/media/brand/ridgeway-home-services-logo.svg",
+      "width": 512,
+      "height": 126
+    }
+  },
+  "contact": {
+    "phone": {
+      "country": "US",
+      "number": "(555) 010-0198"
+    },
+    "email": "hello@example.com",
+    "bookingUrl": "#",
+    "contactFormEmbedUrl": "",
+    "socialLinks": [
+      {
+        "platform": "instagram",
+        "url": "https://www.instagram.com/"
+      },
+      {
+        "platform": "facebook",
+        "url": "https://www.facebook.com/"
+      }
+    ],
+    "locations": [
+      {
+        "name": "Springfield, Illinois",
+        "streetAddress": "123 Main Street",
+        "addressLine2": "",
+        "city": "Springfield",
+        "region": "IL",
+        "postalCode": "62701",
+        "country": "US",
+        "hours": ["Monday - Friday, 7 AM - 7 PM", "Saturday, 8 AM - 4 PM"]
+      },
+      {
+        "name": "Madison, Wisconsin",
+        "streetAddress": "456 Oak Avenue",
+        "addressLine2": "",
+        "city": "Madison",
+        "region": "WI",
+        "postalCode": "53703",
+        "country": "US",
+        "hours": ["Monday - Friday, 7 AM - 7 PM", "Saturday, 8 AM - 4 PM"]
+      }
+    ]
+  },
+  "theme": {
+    "primaryColor": "mist"
+  },
+  "navigation": {
+    "header": {
+      "links": [
+        {
+          "label": "About",
+          "href": "/about",
+          "_template": "link"
+        },
+        {
+          "label": "Services",
+          "items": [
+            {
+              "label": "Services overview",
+              "href": "/services",
+              "description": "Every trade we cover, from quick fixes to full installations."
+            },
+            {
+              "label": "Plumbing & HVAC",
+              "href": "/services/plumbing-hvac",
+              "description": "Leaks, drains, water heaters, furnaces, and AC."
+            },
+            {
+              "label": "Electrical",
+              "href": "/services/electrical",
+              "description": "Panels, wiring, lighting, and safe code-compliant repairs."
+            },
+            {
+              "label": "Roofing",
+              "href": "/services/roofing",
+              "description": "Storm damage, leak repairs, and full roof replacements."
+            },
+            {
+              "label": "Emergency repairs",
+              "href": "/services/emergency-repairs",
+              "description": "24/7 response when something cannot wait until morning."
+            },
+            {
+              "label": "Maintenance plans",
+              "href": "/services/maintenance-plans",
+              "description": "Yearly tune-ups that catch problems before they become emergencies."
+            }
+          ],
+          "_template": "dropdown"
+        },
+        {
+          "label": "Blog",
+          "href": "/blog",
+          "_template": "link"
+        },
+        {
+          "label": "Contact",
+          "href": "/contact",
+          "_template": "link"
+        }
+      ],
+      "actions": {
+        "secondary": {
+          "label": "",
+          "href": ""
+        },
+        "primary": {
+          "label": "Get a free estimate",
+          "href": ""
+        }
+      }
+    },
+    "footer": {
+      "groups": [
+        {
+          "title": "Services",
+          "links": [
+            {
+              "label": "Plumbing & HVAC",
+              "href": "/services/plumbing-hvac"
+            },
+            {
+              "label": "Electrical",
+              "href": "/services/electrical"
+            },
+            {
+              "label": "Roofing",
+              "href": "/services/roofing"
+            },
+            {
+              "label": "Emergency repairs",
+              "href": "/services/emergency-repairs"
+            },
+            {
+              "label": "Maintenance plans",
+              "href": "/services/maintenance-plans"
+            }
+          ]
+        },
+        {
+          "title": "Company",
+          "links": [
+            {
+              "label": "About",
+              "href": "/about"
+            },
+            {
+              "label": "Services overview",
+              "href": "/services"
+            }
+          ]
+        },
+        {
+          "title": "Resources",
+          "links": [
+            {
+              "label": "Blog",
+              "href": "/blog"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        },
+        {
+          "title": "Legal",
+          "links": [
+            {
+              "label": "Privacy policy",
+              "href": "/legal/privacy-policy"
+            },
+            {
+              "label": "Terms of service",
+              "href": "/legal/terms-of-service"
+            }
+          ]
+        }
+      ],
+      "showSocialLinks": true
+    }
+  }
+}
