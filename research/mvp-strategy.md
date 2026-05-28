@@ -1,8 +1,8 @@
 # MVP Strategy Research
 
-Findings from the grilling session on 2026-05-24/25. Covers product shape, generation pipeline, pricing, and the open risks that still need validation.
+Findings from the grilling sessions on 2026-05-24 through 2026-05-28. Covers product shape, generation and lifecycle pipeline, application architecture, pricing, and the open risks that still need validation.
 
-The product is an automated agency that rebuilds local-service contractor websites (plumbing, HVAC, electrical, roofing) and pitches the rebuild as a lead magnet — full live Preview Site as cold-outreach payload, conversion to a tiered subscription. Generation runs in cloud containers (Upstash Box) using existing coding-agent harnesses (Codex / Claude Code) against the in-repo Tina CMS template.
+The product is an automated agency that rebuilds local-service contractor websites (plumbing, HVAC, electrical, roofing) and pitches the rebuild as a lead magnet — full live Preview Site as cold-outreach payload, conversion to a single subscription. Generation runs in cloud containers (Upstash Box) using existing coding-agent harnesses (Codex / Claude Code) against the Tina CMS Template Site. The Orchestrator owns durable lifecycle state; the coding agent owns only the generated site workspace.
 
 For canonical terminology see [`CONTEXT.md`](../CONTEXT.md).
 
@@ -12,7 +12,7 @@ For canonical terminology see [`CONTEXT.md`](../CONTEXT.md).
 
 ### Lead magnet: full live Preview, not a screenshot or landing page
 
-Each Prospect gets a fully browsable Preview Site hosted at `{slug}.preview.youragency.com`. The "wow" of the cold outreach depends on the prospect being able to *click around* a working version of their site — not a screenshot, not a landing page, not a video walkthrough. Landing-page-only is too easy to dismiss as a mockup.
+Each Prospect gets a fully browsable Preview Site hosted at `{slug}.youragency.com`. The "wow" of the cold outreach depends on the prospect being able to *click around* a working version of their site — not a screenshot, not a landing page, not a video walkthrough. Landing-page-only is too easy to dismiss as a mockup.
 
 The Preview's Tina admin route is open access for the MVP. This is a consciously accepted tail-risk: cert transparency logs leak the subdomain inventory, and a competitor could in principle edit a Preview to damage a Prospect's reputation. Mitigation is one line of code (a one-time per-site code in the cold-email URL gating `/admin`) and can be added later if abuse materializes. At MVP volumes, the risk is small.
 
@@ -22,19 +22,28 @@ Every generation produces a complete operating stack: GitHub repo + Vercel proje
 
 ### URL: wildcard subdomain of the agency domain
 
-Wildcard CNAME (`*.preview.youragency.com`) pointing at Vercel. Each generation gets a Vercel custom domain assigned via the Vercel API. Random `vercel.app` URLs read as spam in cold email — branded subdomains read as a real pitch. Migration to in-house hosting later is DNS-only.
+Wildcard CNAME (`*.youragency.com`) points at Vercel, while `youragency.com` and `www.youragency.com` stay reserved for the agency's own public web presence. Each generated Preview Site gets a Vercel custom domain assigned via the Vercel API. Random `vercel.app` URLs read as spam in cold email; branded subdomains read as a real pitch. Migration to in-house hosting later is DNS-only.
+
+The `.preview` namespace was dropped from the Prospect-facing URL because `acme-plumbing.youragency.com` is cleaner and more recognizable in cold outreach than `acme-plumbing.preview.youragency.com`. The trade-off is that Preview Site slugs now share namespace with agency-owned subdomains, so the Orchestrator needs a reserved-slug blocklist such as `www`, `app`, `ops`, `admin`, `api`, `mail`, `billing`, `support`, `status`, `preview`, and `migrate`.
+
+Slug generation is business-name-first. Market is used only for collision or ambiguity:
+
+- `Acme Plumbing` → `acme-plumbing.youragency.com`
+- `Acme Plumbing` in Austin, if needed → `acme-plumbing-austin.youragency.com`
+
+This keeps the cold-email URL short while preserving a path for duplicate business names.
 
 ### Trigger mode: outbound mass for MVP, self-serve later
 
 Cold-email-driven outbound for the first 90 days. No public form, no signup flow, no captcha — generations are kicked off from a scraped list, the Prospect's first touchpoint is the email. Self-serve (ad-driven landing page → form → site) is the v2 expansion once outbound is validated.
 
-The implication: there is no customer-facing dashboard, signup flow, or onboarding UI in the MVP. The "simple dashboard" that's eventually needed is post-payment Customer territory only.
+The implication: there is no customer-facing dashboard, signup flow, or onboarding UI in the MVP. The Customer Portal becomes useful later for billing, account, and subscription management.
 
 ---
 
 ## Conversion Flow
 
-The path from "Prospect clicks the email CTA" to "paying Customer." Modeled as a SaaS funnel (Shopify/Wix/Squarespace mental model), not as an agency sales process. The conversion event is the **Migration** — the moment the Prospect's real domain resolves to the site — not a button click or a signed contract.
+The path from "Prospect clicks the email CTA" to Customer relationship and paid subscription. Modeled as a SaaS funnel (Shopify/Wix/Squarespace mental model), not as an agency sales process. The conversion event from Prospect to Customer is the **Migration** — the moment the Prospect's real domain resolves to the site — not a button click, payment, or a signed contract. Payment and Free Trial state are tracked separately.
 
 ### Funnel shape: two CTAs on the Preview Site
 
@@ -129,7 +138,7 @@ Tina-native `/admin` at the Customer's own domain is the standard Tina pattern �
 
 ### Preview URL after Migration: 301 redirect
 
-`{slug}.preview.youragency.com` is configured as a permanent 301 redirect to the Customer's real domain at Migration completion. This:
+`{slug}.youragency.com` is configured as a permanent 301 redirect to the Customer's real domain at Migration completion. This:
 
 - Cleans up the security concern of a shadow site with stale auth state.
 - Handles anyone who bookmarked the preview link.
@@ -139,16 +148,46 @@ Tina-native `/admin` at the Customer's own domain is the standard Tina pattern �
 
 ## Generation Pipeline
 
+### Generation Brief: minimal operator intent, not a validation contract
+
+The Orchestrator starts a Generated Site from a Generation Brief:
+
+```json
+{
+  "businessName": "Acme Plumbing",
+  "sourceUrl": "https://acmeplumbing.com",
+  "niche": "plumbing",
+  "market": "Austin, TX"
+}
+```
+
+The Source URL remains the agent's primary evidence for identity, services, phone/address, brand cues, and service-area details. The additional fields are not meant to override the Source URL; they give the agent enough intent to avoid ambiguous scraping and to aim the pitch at the correct local market.
+
+`market` deliberately replaced `city`. A Prospect may operate across a metro, county, or multi-city service area, and the Preview Site should be pitched into the primary market without pretending that market is the whole service area.
+
+### No deterministic preflight gates for MVP
+
+The earlier preflight idea included checks like "rendered page mentions the company name," "niche keywords are present," and "city matches." That is too much orchestration for the MVP. These checks are brittle, slow to tune, and duplicate the actual quality gate: human review of the rendered Preview Site before outreach.
+
+MVP position:
+
+- The Generation Brief is context for the agent, not a deterministic validation contract.
+- The Orchestrator should not reject a generation because it failed a niche/city/company-name text check.
+- A cheap Source URL reachability check is acceptable as operator ergonomics, but URL failure can also simply become a Generation Run failure.
+- Generation quality is judged by the rendered Preview Site, not by a machine-scored intermediate brief.
+
+This keeps the Orchestrator small and leaves quality iteration in the prompt/template/human-review loop.
+
 ### Extraction: hand URL directly to the agent, with two arms in parallel
 
-Selected approach: URL → coding agent, agent decides what to read and how deep. The agent can call Firecrawl as a tool for HTML→markdown conversion. The argument for this over a deterministic pre-extraction step is that it minimizes pipeline code and lets the agent's judgment drive content depth, which matches the "use the cheap powerful harness, write less code" thesis.
+Selected approach for the initial implementation: Generation Brief → coding agent, agent decides what to read and how deep. The agent can call Firecrawl as a tool for HTML→markdown conversion. The argument for this over a deterministic pre-extraction step is that it minimizes pipeline code and lets the agent's judgment drive content depth, which matches the "use the cheap powerful harness, write less code" thesis.
 
-Quality is gated by **post-generation visual review of the live Preview before the email is sent** — not by intermediate brief review. The brief tells you less than the rendered site; if the site looks good, the brief was good.
+Quality is gated by **post-generation visual review of the live Preview before the email is sent** — not by intermediate brief review. The brief tells you less than the rendered site; if the site looks good, the brief was good enough.
 
 **A/B test planned for early validation.** Two arms:
 
 - **Arm 1 (orchestrator-driven):** Firecrawl scrapes the Source URL up-front, passes structured markdown to the agent, agent generates from that input.
-- **Arm 2 (agent-driven):** Agent receives only the URL plus Firecrawl as a tool, decides what subpages to read and how deep.
+- **Arm 2 (agent-driven):** Agent receives the Generation Brief plus Firecrawl as a tool, decides what subpages to read and how deep.
 
 Test rig:
 
@@ -157,15 +196,239 @@ Test rig:
 - Same Firecrawl as page-rendering tool on both sides (so the variable being tested is *who decides what to extract*, not extraction quality itself).
 - Rubric: name/phone/address accuracy, service-list completeness, copy specificity (cites real proof points from source), invented-fact rate, total runtime cost.
 
-The rubric itself becomes a reusable generation-quality check for ongoing operations.
+The rubric itself becomes a reusable generation-quality check for ongoing operations, but not an MVP orchestrator gate.
 
-### Pre-flight validation
+### Orchestrator boundary
 
-The orchestrator's input contract is **`{business_name, business_url, niche, city}`**, not bare URL. The pre-flight check confirms the Source URL is alive, has real content (not parked/coming-soon), the business name appears recognizably in the rendered page, niche keywords are present, and geography matches the expected city. Cheap to implement, cheap to run, and catches the most damaging failure mode (generating a beautiful site for the wrong business or for a defunct URL).
+The Orchestrator owns lifecycle state and external side effects. The coding agent owns only the Generated Site workspace.
+
+Orchestrator responsibilities:
+
+- create the Generated Site record
+- create or reuse the Generated Site GitHub repo
+- create Generation Runs
+- start generation compute
+- write the Generation Brief input artifact
+- validate the agent's result artifact shape
+- record state in SQLite
+- call GitHub, Vercel, Tina Cloud, email, Migration, Trial, Archive, and Sunset actions as those features exist
+
+Coding-agent responsibilities:
+
+- read the Source URL
+- edit content/config/media inside the Generated Site repo
+- run local checks/builds if available
+- write a structured generation result artifact
+- leave lifecycle decisions to the Orchestrator
+
+The agent should not write directly to SQLite and should not independently mark sites reviewed, emailed, migrated, archived, or sunset.
+
+### Agent handoff contract
+
+Use the filesystem as the handoff boundary between the Orchestrator and coding agent, then persist accepted state into SQLite.
+
+Workspace shape:
+
+```text
+runs/{slug}/
+  input/generation-brief.json
+  output/generation-result.json
+  site/
+```
+
+The Orchestrator writes `generation-brief.json`. The agent writes `generation-result.json`, including a `schemaVersion`, status, summary, changed paths, source notes, and review notes. The Orchestrator validates the result JSON against a schema before storing it on the Generation Run.
+
+Important distinction:
+
+- The file is the handoff contract.
+- SQLite is the durable system of record.
+- Schema validation proves only that the agent returned machine-readable output; it does not prove the generated site is good.
+
+### Durable state model
+
+Use SQLite for the MVP Orchestrator state store rather than JSON. It is still a single local file, but it gives atomic updates and direct querying for "failed runs," "previews waiting for review," and "emailed sites not migrated."
+
+Recommended MVP tables:
+
+```text
+generated_sites
+- id
+- slug
+- business_name
+- source_url
+- niche
+- market
+- status
+- repo_url
+- vercel_project_id
+- tina_project_id
+- preview_url
+- published_generation_run_id
+- initial_outreach_sent_at
+- created_at
+- updated_at
+
+generation_runs
+- id
+- generated_site_id
+- run_number
+- status
+- retry_reason
+- previous_site_status
+- branch_name
+- workspace_path
+- candidate_url
+- vercel_deployment_id
+- brief_json
+- result_json
+- error
+- promoted_at
+- promotion_error
+- started_at
+- completed_at
+
+generated_site_events
+- id
+- generated_site_id
+- type
+- reason
+- metadata_json
+- created_at
+```
+
+`generated_sites.status` is the current lifecycle state for easy querying. `generated_site_events` is the append-only history for timestamps, reasons, and metadata such as which Generation Run was reviewed or promoted. This avoids adding a new nullable timestamp column for every lifecycle transition while keeping the current state cheap to query.
+
+Keep `initial_outreach_sent_at` as a direct column even though an `emailed` event also exists. It protects an operational invariant: the initial outreach email should never be sent twice automatically, especially after post-email retries.
+
+No `generation_run_events` table is needed for MVP. Generation Runs are the technical attempt history; step-level timing like "clone started" or "build started" can stay in logs.
+
+### Generated Site statuses
+
+Initial MVP statuses:
+
+```text
+generating
+generation_failed
+preview_ready
+reviewed
+emailed
+migrated
+archived
+sunset
+```
+
+Meanings:
+
+- `generating`: initial generation is active and no usable Preview Site exists yet.
+- `generation_failed`: the latest initial Generation Run failed before a usable Preview Site existed.
+- `preview_ready`: the stable Preview Site URL resolves and is waiting for human review.
+- `reviewed`: an operator approved the currently promoted Generation Run for outreach.
+- `emailed`: initial outreach containing the Preview Site link has been sent.
+- `migrated`: the Prospect's real domain points to the Generated Site; this is the Preview Site → Customer Site conversion event.
+- `archived`: an unconverted Preview Site has been retired before Migration.
+- `sunset`: a Customer Site has been taken offline after Migration, usually for non-payment or cancellation.
+
+There is no `created` status for MVP. If future batch import or scheduling creates records before generation starts, add `queued` then. Until that exists, the first status is `generating`.
+
+`archived` is the pre-Migration terminal status. `sunset` is the post-Migration terminal status. Do not use `sunset` for stale Previews.
+
+Status changes should go through a single Orchestrator transition function that:
+
+1. loads the current status
+2. checks the transition map
+3. updates `generated_sites.status`
+4. inserts a `generated_site_events` row
+5. applies special invariants such as `initial_outreach_sent_at`
+
+This keeps the current status and event history from drifting.
+
+### GitHub and Vercel model
+
+Use one GitHub repo per Generated Site. Each Generation Run gets its own branch:
+
+```text
+repo: acme-plumbing
+  main
+  generation/run-001
+  generation/run-002
+```
+
+Vercel Git integration maps this cleanly:
+
+- pushes to `generation/run-*` produce Vercel Preview deployments with internal candidate URLs
+- pushes to `main` produce Production deployments
+- `{slug}.youragency.com` points at the latest successful Production deployment
+
+Store:
+
+```text
+generation_runs.candidate_url
+generated_sites.preview_url
+generated_sites.published_generation_run_id
+```
+
+`candidate_url` is the internal per-run URL used for operator inspection. `preview_url` is the stable Prospect-facing URL, usually `https://{slug}.youragency.com`. `published_generation_run_id` answers which successful run currently backs that stable URL.
+
+### Promotion
+
+Promotion is the act of making a successful Generation Run the version that backs the stable Preview Site.
+
+First successful run:
+
+```text
+Generation Run 1 succeeds
+→ auto-promote Run 1 to main
+→ Vercel production deploy succeeds
+→ {slug}.youragency.com serves Run 1
+→ generated_sites.status = preview_ready
+→ published_generation_run_id = Run 1
+```
+
+Later runs:
+
+```text
+Generation Run 2 succeeds
+→ Run 2 has candidate_url
+→ stable Preview URL still serves Run 1
+→ operator promotes Run 2
+→ main is replaced with Run 2
+→ Vercel production deploy succeeds
+→ stable Preview URL now serves Run 2
+→ published_generation_run_id = Run 2
+```
+
+The Orchestrator should update `published_generation_run_id` only after the production Vercel deployment succeeds and the stable Preview URL is verified. If promotion fails, record the failure on the Generation Run and leave the currently published run intact.
+
+Promotion should make `main` exactly match the selected successful Generation Run. PR review is unnecessary for MVP because the real review artifact is the rendered site, not a code diff. Since these repos are generated outputs owned by the Orchestrator, replacing `main` with the selected run tree is acceptable.
+
+Review applies to the currently promoted run. If a new run is promoted while the site is `reviewed`, reset status to `preview_ready` because the old human review no longer applies. If a new run is promoted after the site is `emailed`, keep status `emailed` because initial outreach already happened; do not send the initial outreach again.
+
+### Retry model
+
+A Retry creates a new Generation Run for the same Generated Site. It does not create a second Generated Site, does not create a second Preview Site, and is not the A/B variant model. A/B variants are a separate future feature.
+
+Retry rules:
+
+- every Retry requires a retry reason
+- every Retry starts from a clean Template Site baseline, not the previous failed output
+- every Retry gets its own branch and candidate deployment
+- old Generation Run rows are retained
+- no extra Generation Run event table is needed
+- already-emailed sites can be retried, but the Orchestrator must not resend initial outreach automatically
+
+Initial retry reasons can be loose strings or a simple enum:
+
+```text
+technical_failure
+quality_retry
+source_correction
+prompt_experiment
+post_email_fix
+```
 
 ### Bootstrap: GitHub Template Repository
 
-`apps/template-site/` gets extracted into its own GitHub repo marked as a template. The orchestrator's bootstrap step is one API call: `POST /repos/{owner}/{template}/generate` → a new repo per Prospect. The orchestrator clones the new repo into `runs/{slug}/`, the agent runs against that directory, then commits and pushes.
+`apps/template-site/` gets extracted into its own GitHub repo marked as a template. The Orchestrator's bootstrap step is one API call: `POST /repos/{owner}/{template}/generate` → a new repo per Prospect. The Orchestrator clones the new repo into the run workspace, creates the `generation/run-N` branch, and hands the workspace to the agent.
 
 Implication for the codebase: the existing `apps/playground-site` target assumption in `prompts/create-playground-site.md` needs to become a parameter — target path is passed at runtime, not hardcoded.
 
@@ -186,24 +449,149 @@ Each generation runs in an Upstash Box — a managed Docker container per job, w
 
 ### Execution sequencing
 
-The orchestrator location (where the dispatching process runs) evolves independently of the generation environment (always Upstash Box from day one):
+The Orchestrator location evolves independently of the generation environment:
 
 1. **Phase 1:** Orchestrator on Mac, manually invoked, generations in Box.
 2. **Phase 2:** Orchestrator on Mac, queue-driven (CSV in → batch out), generations in Box.
 3. **Phase 3:** Orchestrator on a small cloud VM or Mac mini, queue + cron-driven, generations still in Box.
 
-Each transition is hours of work, not days, because the Box adapter doesn't change.
+Each transition is hours of work, not days, because the Box adapter and Orchestrator state model do not change.
 
 ### Workspace lifecycle
 
-`./runs/{slug}/` is the generation workspace pattern, gitignored from the orchestrator repo.
+`./runs/{slug}/` is the generation workspace pattern, gitignored from the Orchestrator repo.
 
-- **On success** (commit pushed + Vercel deploy green + Tina connected): nuke the local directory. Canonical copy is on GitHub.
+- **On success:** branch pushed, result persisted, deployment data stored, local directory can be removed unless `--keep` is set.
 - **On failure at any step:** retain the directory. The agent's half-finished output is the most informative thing about what went wrong.
+- **On Retry:** create a fresh workspace from the clean Template Site baseline.
 - `--keep` flag for development to always retain.
-- Re-runs (e.g., prompt tweaked) re-clone from GitHub; bandwidth is cheap.
 
-Local clones are *cache*, not state.
+Local clones are cache and debugging artifacts, not the durable system of record.
+
+### First implementation milestone
+
+The first Orchestrator implementation should stop at **Preview Site ready for human review**.
+
+In scope:
+
+- create Generated Site record
+- create repo from Template Site
+- run first Generation Run
+- validate result artifact shape
+- build site
+- push run branch
+- create candidate deployment
+- auto-promote the first successful run
+- attach stable Preview URL
+- store state in SQLite
+
+Out of scope for the first milestone:
+
+- send outreach email
+- implement Migration
+- implement Trial billing
+- implement Sunset mechanics
+- build the Operator Console UI
+- build the Customer Portal
+
+---
+
+## Application Architecture
+
+### Logical ownership
+
+Keep the architectural boundaries separate even if the implementation starts small.
+
+```text
+Template Site
+- reusable website substrate
+- copied/generated into customer repos
+
+Orchestrator
+- owns Generated Sites, Generation Runs, Promotion, lifecycle transitions, and external side effects
+- starts as CLI + SQLite
+- later becomes the backend used by internal UI and jobs
+
+Operator Console
+- internal UI for agency operators
+- lists Generated Sites and Generation Runs
+- starts retries, promotes runs, marks reviewed, archives sites, and later handles Migration/Sunset operations
+- calls Orchestrator capabilities instead of duplicating lifecycle rules
+
+Customer Portal
+- customer-facing account and billing app
+- handles subscription/trial/account concerns when those exist
+- may read limited Customer Site state, but should not expose generation/promotion internals
+
+Marketing Site
+- public agency homepage
+- trust surface for cold email recipients who manually visit the agency domain
+```
+
+The Operator Console replaces the earlier fuzzy "Backstore" phrasing. It is not the Orchestrator; it is a client of the Orchestrator.
+
+### Monorepo, separate deployed apps
+
+Recommended eventual code shape:
+
+```text
+apps/
+  template-site/
+  orchestrator/
+  operator-console/
+  customer-portal/
+  marketing-site/
+
+packages/
+  db/
+  orchestrator-core/
+  ui/
+```
+
+This is a modular monolith, not microservices. The apps can share packages and a database, but each audience gets its own web boundary:
+
+```text
+youragency.com          marketing
+www.youragency.com      marketing
+ops.youragency.com      Operator Console
+app.youragency.com      Customer Portal
+{slug}.youragency.com   Preview Sites / post-Migration redirects
+```
+
+Why not one big Next.js app? One app is faster initially, but it mixes public marketing, customer auth, and internal operator permissions in a single trust boundary. Separate Next.js apps have more setup, but cleaner auth, env vars, domains, deploy history, and accidental-exposure risk.
+
+### Vercel deployment for monorepo apps
+
+Use one GitHub monorepo for the agency codebase, but create separate Vercel Projects from the same repo:
+
+```text
+Vercel Project: agency-marketing
+Root Directory: apps/marketing-site
+Domains: youragency.com, www.youragency.com
+
+Vercel Project: agency-ops
+Root Directory: apps/operator-console
+Domain: ops.youragency.com
+
+Vercel Project: agency-app
+Root Directory: apps/customer-portal
+Domain: app.youragency.com
+```
+
+Vercel's Root Directory setting tells each project which app to build. A commit to the monorepo may trigger multiple projects; for MVP this is fine. Later, use Vercel's ignored build step / monorepo skipping so unrelated app changes do not rebuild everything.
+
+Generated customer sites are different from the agency monorepo. Each Generated Site still gets its own GitHub repo and Vercel project created from the Template Site.
+
+### Implementation sequence
+
+Do not build all apps at once.
+
+1. **Now:** `apps/template-site` and `apps/orchestrator`.
+2. **First UI:** `apps/operator-console`, because the operator needs to inspect Generated Sites/Runs and manually promote/review/archive.
+3. **Later:** `apps/customer-portal`, once billing, account, and trial management become real.
+4. **Marketing:** `apps/marketing-site` when the agency apex needs to look credible. The apex should be reserved even before the site is sophisticated.
+
+The key rule: lifecycle transitions live in Orchestrator code. Web apps call that code; they do not invent their own status mutation paths.
 
 ---
 
@@ -303,16 +691,16 @@ The $99/mo Pro anchor sits cleanly: above DIY (you're done-for-them, they're not
 
 ## Targeting Strategy
 
-### Single niche × single metro for the first batch
+### Single niche × single Market for the first batch
 
-Recommendation: pick one niche and one metro, generate 5–20 Preview Sites for that combination, get 3–5 paying Founding Customers, only then expand to a second niche (same metro) or a second metro (same niche). Reasoning:
+Recommendation: pick one niche and one Market, generate 5–20 Preview Sites for that combination, get 3–5 Founding Customers, only then expand to a second niche in the same Market or a second Market for the same niche. Reasoning:
 
 - Cold email copy is hyper-specific ("we work with roofers in Denver") — highest open and reply rate.
-- Testimonials compound twice (same niche AND same metro) — a Denver roofer is far more likely to trust a Denver roofer's quote than an out-of-state one.
-- Template, prompts, image library, and icon set can be tuned per niche before generalizing — one well-tuned niche-and-metro template wins more than four mediocre ones.
+- Testimonials compound twice (same niche AND same Market) — a Denver roofer is far more likely to trust a Denver roofer's quote than an out-of-state one.
+- Template, prompts, image library, and icon set can be tuned per niche before generalizing — one well-tuned niche-and-Market template wins more than four mediocre ones.
 - Bounds first-month work — generating 50 previews for one slice is testable in days; trying to do four niches in parallel diffuses attention.
 
-### Picking the first niche × metro
+### Picking the first niche × Market
 
 Decision deferred. Heuristic:
 
@@ -320,7 +708,7 @@ Decision deferred. Heuristic:
 - **Visible-pain market** (many local competitors with objectively bad sites — easy to identify scrapeable list).
 - **Personal angle** (you live there, know someone, have existing network) — first 5 sales are hard without it.
 
-Default if no personal angle: roofers in a sun-belt metro (Phoenix, Tampa, Dallas, Denver) — high ticket, lots of storm activity, lots of competitors, dated sites.
+Default if no personal angle: roofers in a sun-belt metro Market (Phoenix, Tampa, Dallas, Denver) — high ticket, lots of storm activity, lots of competitors, dated sites.
 
 ### Niche-specific template considerations
 
@@ -352,20 +740,38 @@ Things to validate before committing infrastructure:
 
 Items not yet decided at the time of this writing:
 
-- **First niche × metro pick.** Heuristic agreed, specific choice pending.
+- **First niche × market pick.** Heuristic agreed, specific choice pending.
 - **Outbound infrastructure scope.** Is list scraping + cold email automation part of `agent_studio` the codebase, or external SaaS tools (Apollo, Instantly, Smartlead) wired up via webhooks?
-- **Orchestrator code shape.** Node/TypeScript surface area. Commands. State machine. Logging. Job queue choice (e.g., simple SQLite-backed vs Redis).
+- **Exact Orchestrator implementation details.** CLI framework, ORM/migration tool, logging shape, and command names. The lifecycle model is decided; the code-level tooling is not.
+- **Operator Console auth and UI scope.** Separate app boundary is decided; exact auth provider, route structure, and first screen are not.
+- **Customer Portal scope.** Separate future app boundary is decided; exact billing/account features wait until billing exists.
 - **Founding Customer agreement specifics.** One-pager template content. Termination clauses. What happens if a Founding Customer wants to leave at month 4 (mid-contract)?
 - **Dunning email sequence specifics.** Cadence, copy, exact day numbers, escape-valve instructions for repointing DNS.
 - **Sunset maintenance page content and design.** Generic "Site Temporarily Unavailable" treatment; specific wording, branding (none), reactivation CTA for the Customer themselves vs. nothing for visitors.
 - **"Founding price" sweetener for first 50 paying Customers.** $79/mo for life vs. standard $99 — defer until we've seen response rates.
 - **Capture-and-return-old-DNS at Migration.** Whether the Migration step records the Customer's prior A/CNAME so we can include "to revert, set these back" in the trial-end and Sunset emails.
 
-Resolved this session (2026-05-25), moved out of this list:
+Resolved in prior grilling sessions (2026-05-24/25), moved out of this list:
 
 - **Conversion flow** → see ## Conversion Flow.
 - **Repo and DNS ownership transfer** → agency holds the stack (SaaS model); see ## Conversion Flow → Post-Migration ownership.
 - **Pricing specifics** → single tier, $99/mo, no setup fee; see ## Pricing & Business Model → Subscription model.
+
+Resolved in the lifecycle architecture session (2026-05-28), moved out of this list:
+
+- **Generation Brief shape** → minimal `{businessName, sourceUrl, niche, market}` context object; see ## Generation Pipeline.
+- **Market vs. city** → use Market for city/metro/county/multi-city targeting; see `CONTEXT.md`.
+- **No deterministic preflight gates** → rely on rendered-site human review for MVP; see ## Generation Pipeline.
+- **Orchestrator boundary** → Orchestrator owns lifecycle state and external side effects; coding agent owns the workspace.
+- **SQLite over JSON** → SQLite is the MVP Orchestrator system of record.
+- **Generated Site / Generation Run split** → durable lifecycle object vs. technical generation attempt.
+- **Retry model** → same Generated Site, new Generation Run, required retry reason, clean Template Site baseline.
+- **Promotion model** → successful run becomes the stable Preview Site version; first success auto-promotes, later runs require explicit Promotion.
+- **Generated Site status set** → `generating`, `generation_failed`, `preview_ready`, `reviewed`, `emailed`, `migrated`, `archived`, `sunset`.
+- **Lifecycle event table** → keep current status on `generated_sites`, use `generated_site_events` for transition history, no `generation_run_events`.
+- **Preview URL namespace** → `{slug}.youragency.com`, with apex/`www` reserved for the Marketing Site.
+- **Application boundaries** → Orchestrator, Operator Console, Customer Portal, Marketing Site, and Template Site remain separate logical boundaries.
+- **Vercel monorepo deployment model** → one agency monorepo, separate Vercel Projects per web app using Root Directory; Generated Sites remain separate repos/projects.
 
 ---
 
@@ -378,6 +784,9 @@ The decisions most likely to deserve an ADR, in rough order of priority. Hold of
 3. **Free Trial, no card collected at Migration.** Hard to reverse once early Customers are on this footing. Surprising vs. the standard SMB-SaaS card-on-file pattern. Real trade-off (trust-building vs. collection efficiency) decided in favor of trust because the brand is new.
 4. **Single-tier pricing for MVP, no setup fee.** Hard to reverse once Customers are signed at one price (changing pricing post-signup is socially complex). Surprising vs. the standard SaaS three-tier pattern. Real trade-off (decoy-tier psychology vs. needing real Customer data before designing tiers).
 5. **Open `/admin` on Preview Sites for MVP.** Hard-to-reverse pattern once Prospects start expecting it; surprising for a security reviewer; real trade-off (alternatives were considered with explicit cost reasoning).
-6. **Upstash Box as generation runtime.** Worth an ADR only if you commit deeply enough to it that swapping becomes painful. Currently mitigated by thin adapter.
+6. **Orchestrator owns Generated Site lifecycle state.** Worth an ADR once the Orchestrator is scaffolded because future UI/jobs should call Orchestrator transitions instead of mutating status directly. Real trade-off (central lifecycle owner vs. simpler direct writes from each app).
+7. **SQLite current-state plus lifecycle events.** Worth an ADR once migrations exist because the design explicitly chooses `generated_sites.status` plus `generated_site_events` instead of timestamp/reason columns for every transition. Real trade-off (simple current queries + append-only history vs. denormalized lifecycle columns).
+8. **Branch-per-Generation-Run with Promotion to main.** Worth an ADR once implemented because it shapes GitHub/Vercel workflow for every Generated Site. Real trade-off (inspectable candidate runs and stable Preview URL vs. simpler overwrite-only generation).
+9. **Upstash Box as generation runtime.** Worth an ADR only if you commit deeply enough to it that swapping becomes painful. Currently mitigated by thin adapter.
 
 (1) and (2) are the most load-bearing — they shape both the product pitch and the architecture. Write those first when the time comes.

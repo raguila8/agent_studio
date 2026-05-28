@@ -25,11 +25,11 @@ A [[generated-site]] after [[migration]] has completed — i.e., the Prospect's 
 _Avoid_: Live site, production site, real site.
 
 **Prospect**:
-A contractor whose Preview Site has been generated but who has not yet paid.
+A contractor whose Preview Site has been generated but whose Migration has not completed.
 _Avoid_: Lead, target, candidate.
 
 **Customer**:
-A Prospect who has paid. Owns the Customer Site, has Tina editor access.
+A Prospect whose Migration has completed. Payment, Free Trial, and subscription status are separate from the Customer lifecycle identity. Has a Customer Site and Tina editor access.
 _Avoid_: Client, user, account.
 
 **Source URL**:
@@ -63,6 +63,14 @@ _Avoid_: Admin app, pipeline runner, control plane.
 **Operator Console**:
 The internal UI used by agency operators to inspect and control Generated Sites, Generation Runs, Promotions, reviews, outreach state, Migration, Archive, and Sunset. The Operator Console uses Orchestrator capabilities; it does not own lifecycle rules independently.
 _Avoid_: Backstore, admin app, dashboard.
+
+**Customer Portal**:
+The customer-facing account surface for billing, subscription, trial, and account management. It is distinct from the Customer Site and from Tina's `/admin` editing experience.
+_Avoid_: Customer dashboard, app, editor.
+
+**Marketing Site**:
+The public agency website hosted at the agency's apex and `www` domains. It explains and legitimizes the agency; it is not a Preview Site or Customer Site.
+_Avoid_: Homepage, landing page, public app.
 
 **Founding Customer**:
 A [[customer]] in the first 3–5 onboarding cohort who receives the service free for a fixed period in exchange for testimonials, logo rights, and a recorded reference call. Distinct from paying customers in lifecycle and pricing, not in product entitlement.
