@@ -344,7 +344,7 @@ This keeps the current status and event history from drifting.
 
 ### GitHub and Vercel model
 
-Use one GitHub repo per Generated Site. Each Generation Run gets its own branch:
+Use one GitHub repo per Generated Site. Create the repo before generation starts; the repo is the Generated Site's durable identity, while the local workspace is only a temporary checkout used by a Generation Run. Each Generation Run gets its own branch:
 
 ```text
 repo: acme-plumbing
@@ -407,6 +407,8 @@ Review applies to the currently promoted run. If a new run is promoted while the
 
 A Retry creates a new Generation Run for the same Generated Site. It does not create a second Generated Site, does not create a second Preview Site, and is not the A/B variant model. A/B variants are a separate future feature.
 
+If a Generation Run fails after the Generated Site repo exists, keep the repo and mark the Generated Site `generation_failed`. Do not automatically delete the repo, Vercel project, Tina project, or SQLite row as part of failure handling; deletion or Archive should be a deliberate operator action. Keeping the durable identity avoids slug reuse ambiguity, disappearing external IDs, and unclear Retry semantics.
+
 Retry rules:
 
 - every Retry requires a retry reason
@@ -428,7 +430,7 @@ post_email_fix
 
 ### Bootstrap: GitHub Template Repository
 
-`apps/template-site/` gets extracted into its own GitHub repo marked as a template. The Orchestrator's bootstrap step is one API call: `POST /repos/{owner}/{template}/generate` → a new repo per Prospect. The Orchestrator clones the new repo into the run workspace, creates the `generation/run-N` branch, and hands the workspace to the agent.
+`apps/template-site/` gets extracted into its own GitHub repo marked as a template. The Orchestrator's bootstrap step is one API call: `POST /repos/{owner}/{template}/generate` → a new repo per Prospect. The Orchestrator clones the new repo into the run workspace, creates the `generation/run-N` branch, and hands the workspace to the agent. This intentionally creates repos before knowing whether generation will succeed; a failed generation is still easier to inspect and retry when its durable Generated Site identity already exists.
 
 Implication for the codebase: the existing `apps/playground-site` target assumption in `prompts/create-playground-site.md` needs to become a parameter — target path is passed at runtime, not hardcoded.
 
@@ -459,12 +461,13 @@ Each transition is hours of work, not days, because the Box adapter and Orchestr
 
 ### Workspace lifecycle
 
-`./runs/{slug}/` is the generation workspace pattern, gitignored from the Orchestrator repo.
+`./runs/{slug}/` is the MVP generation workspace pattern, gitignored from the Orchestrator repo. Keep it inside the agency monorepo for simple local debugging and straightforward `workspace_path` values in SQLite; if the Orchestrator later moves to a different host or disk layout, make the workspace root configurable behind `AGENT_STUDIO_RUNS_DIR`.
 
 - **On success:** branch pushed, result persisted, deployment data stored, local directory can be removed unless `--keep` is set.
 - **On failure at any step:** retain the directory. The agent's half-finished output is the most informative thing about what went wrong.
 - **On Retry:** create a fresh workspace from the clean Template Site baseline.
 - `--keep` flag for development to always retain.
+- Orchestrator startup should fail fast if `./runs/` is not ignored by the agency monorepo. Generated Site repos are nested Git repos only as temporary workspaces; they must never be tracked as agency-monorepo files, submodules, or gitlinks.
 
 Local clones are cache and debugging artifacts, not the durable system of record.
 
